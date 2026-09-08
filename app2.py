@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # أداة Jammer بلوتوث - يعمل بدون Root (محاكاة)
-# التشغيل: streamlit run bluetooth_jammer.py
+# التشغيل: streamlit run app2.py
 
 import streamlit as st
 import time
@@ -36,12 +36,8 @@ if 'packets_sent' not in st.session_state:
 
 def send_jam_packet():
     """محاكاة إرسال حزمة تشويش"""
-    # هنا يمكن استخدام أوامر حقيقية مع صلاحيات
-    # أو محاكاة إذا لم تكن لديك صلاحيات
-    
-    # محاكاة إرسال حزمة
     time.sleep(0.01)
-    return random.choice([True, True, True, False])  # 75% نجاح
+    return random.choice([True, True, True, False])
 
 def continuous_jam(intensity=5, interval=0.1):
     """تشويش مستمر"""
@@ -63,22 +59,6 @@ def continuous_jam(intensity=5, interval=0.1):
                 st.session_state.log = st.session_state.log[-50:]
         
         time.sleep(interval)
-
-# ============================================================
-# طريقة تشغيل الأوامر الحقيقية (إذا كان لديك صلاحيات)
-# ============================================================
-
-def real_jam():
-    """استخدام الأوامر الحقيقية مع صلاحيات"""
-    try:
-        # تشغيل hcitool مع صلاحيات
-        import subprocess
-        # محاولة استخدام su
-        cmd = ["su", "-c", "hcitool cc AA:BB:CC:DD:EE:FF"]
-        result = subprocess.run(cmd, capture_output=True, timeout=1)
-        return result.returncode == 0
-    except:
-        return False
 
 # ============================================================
 # واجهة المستخدم
@@ -186,8 +166,7 @@ with col3:
 st.markdown("---")
 st.markdown("### 🔧 للتشغيل الحقيقي (مع صلاحيات)")
 
-st.markdown("""
-```bash
+st.code("""
 # 1. افتح Termux
 # 2. اكتب هذه الأوامر:
 
@@ -200,4 +179,17 @@ termux-bluetooth-enable
 
 # تشغيل الأداة بصلاحيات الجذر (إذا كان الهاتف مقرصن)
 tsu
-streamlit run bluetooth_jammer.py
+streamlit run app2.py
+""", language="bash")
+
+# ============================================================
+# التذييل
+# ============================================================
+
+st.markdown("---")
+st.markdown("⚠️ **ملاحظات:**")
+st.markdown("1. بدون صلاحيات الجذر، الأداة تعمل في وضع المحاكاة")
+st.markdown("2. للعمل الحقيقي، تحتاج إلى Root أو Termux API")
+st.markdown("3. بعض الهواتف تمنع استخدام البلوتوث من Termux")
+
+st.markdown("made by @cheifbreef on discord :)")
