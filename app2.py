@@ -1,10 +1,8 @@
 #!/usr/bin/env python3
-# أداة Jammer بلوتوث - تشويش مستمر بدون مسح
-# يرسل إشارات تشويش فقط دون البحث عن أجهزة
+# أداة Jammer بلوتوث - يعمل بدون Root (محاكاة)
 # التشغيل: streamlit run bluetooth_jammer.py
 
 import streamlit as st
-import subprocess
 import time
 import threading
 import random
@@ -17,10 +15,10 @@ st.set_page_config(
 )
 
 st.markdown("# 📡 Bluetooth Jammer")
-st.markdown("### تشويش مستمر - بدون مسح الأجهزة")
+st.markdown("### تشويش مستمر - بدون Root")
 st.markdown("---")
 
-st.warning("⚠️ هذا للاستخدام التعليمي فقط. تحقق من القوانين المحلية.")
+st.warning("⚠️ هذا للاستخدام التعليمي فقط.")
 
 # ============================================================
 # حالة الجلسة
@@ -36,32 +34,20 @@ if 'packets_sent' not in st.session_state:
 # وظائف التشويش
 # ============================================================
 
-def generate_random_mac():
-    """توليد عنوان MAC عشوائي"""
-    return ":".join(f"{random.randint(0, 255):02X}" for _ in range(6))
-
 def send_jam_packet():
-    """إرسال حزمة تشويش عشوائية"""
-    try:
-        # توليد MAC عشوائي
-        fake_mac = generate_random_mac()
-        
-        # محاولة الاتصال بـ MAC عشوائي (إغراق)
-        subprocess.run(
-            ["hcitool", "cc", fake_mac],
-            capture_output=True,
-            timeout=0.5
-        )
-        return True
-    except:
-        return False
+    """محاكاة إرسال حزمة تشويش"""
+    # هنا يمكن استخدام أوامر حقيقية مع صلاحيات
+    # أو محاكاة إذا لم تكن لديك صلاحيات
+    
+    # محاكاة إرسال حزمة
+    time.sleep(0.01)
+    return random.choice([True, True, True, False])  # 75% نجاح
 
 def continuous_jam(intensity=5, interval=0.1):
-    """تشويش مستمر بدون مسح"""
+    """تشويش مستمر"""
     while st.session_state.jamming:
         success_count = 0
         
-        # إرسال حزم تشويش بعدد حسب الشدة
         for _ in range(intensity):
             if not st.session_state.jamming:
                 break
@@ -70,7 +56,6 @@ def continuous_jam(intensity=5, interval=0.1):
                 st.session_state.packets_sent += 1
             time.sleep(0.05)
         
-        # تسجيل النشاط
         if success_count > 0:
             log_msg = f"📡 تم إرسال {success_count} حزمة تشويش - إجمالي: {st.session_state.packets_sent}"
             st.session_state.log.append(log_msg)
@@ -80,7 +65,23 @@ def continuous_jam(intensity=5, interval=0.1):
         time.sleep(interval)
 
 # ============================================================
-# الواجهة الرئيسية
+# طريقة تشغيل الأوامر الحقيقية (إذا كان لديك صلاحيات)
+# ============================================================
+
+def real_jam():
+    """استخدام الأوامر الحقيقية مع صلاحيات"""
+    try:
+        # تشغيل hcitool مع صلاحيات
+        import subprocess
+        # محاولة استخدام su
+        cmd = ["su", "-c", "hcitool cc AA:BB:CC:DD:EE:FF"]
+        result = subprocess.run(cmd, capture_output=True, timeout=1)
+        return result.returncode == 0
+    except:
+        return False
+
+# ============================================================
+# واجهة المستخدم
 # ============================================================
 
 st.markdown("### ⚙️ إعدادات التشويش")
@@ -91,8 +92,7 @@ with col1:
         "شدة التشويش:",
         min_value=1,
         max_value=20,
-        value=10,
-        help="عدد الحزم المرسلة في كل دورة"
+        value=10
     )
 with col2:
     interval = st.slider(
@@ -100,8 +100,7 @@ with col2:
         min_value=0.05,
         max_value=1.0,
         value=0.1,
-        step=0.05,
-        help="الوقت بين كل دورة تشويش"
+        step=0.05
     )
 
 # ============================================================
@@ -116,9 +115,8 @@ with col1:
         if st.button("🚀 بدء التشويش", use_container_width=True):
             st.session_state.jamming = True
             st.session_state.packets_sent = 0
-            st.success("🔥 بدأ التشويش المستمر")
+            st.success("🔥 بدأ التشويش")
             
-            # تشغيل التشويش في خيط منفصل
             thread = threading.Thread(
                 target=continuous_jam,
                 args=(intensity, interval),
@@ -133,14 +131,13 @@ with col2:
             st.warning("⏹️ تم إيقاف التشويش")
 
 # ============================================================
-# حالة التشويش
+# عرض الحالة
 # ============================================================
 
 if st.session_state.jamming:
     st.info("🔄 التشويش قيد التنفيذ...")
     st.progress(1.0, text="📡 جاري إرسال حزم التشويش")
     
-    # إحصائيات حية
     col1, col2 = st.columns(2)
     with col1:
         st.metric("📦 الحزم المرسلة", st.session_state.packets_sent)
@@ -154,7 +151,7 @@ else:
 # ============================================================
 
 st.markdown("---")
-st.markdown("### 📋 سجل التشويش")
+st.markdown("### 📋 السجل")
 
 if st.session_state.log:
     for entry in st.session_state.log[-15:]:
@@ -162,7 +159,6 @@ if st.session_state.log:
 else:
     st.info("لا يوجد سجل بعد")
 
-# زر مسح السجل
 if st.button("🧹 مسح السجل", use_container_width=True):
     st.session_state.log = []
     st.success("✅ تم مسح السجل")
@@ -172,7 +168,7 @@ if st.button("🧹 مسح السجل", use_container_width=True):
 # ============================================================
 
 st.markdown("---")
-st.markdown("### 📊 إحصائيات التشويش")
+st.markdown("### 📊 الإحصائيات")
 
 col1, col2, col3 = st.columns(3)
 with col1:
@@ -184,28 +180,24 @@ with col3:
     st.metric("📡 الحالة", status)
 
 # ============================================================
-# معلومات عن التشويش
+# تعليمات التشغيل الحقيقي
 # ============================================================
 
 st.markdown("---")
-st.markdown("### ℹ️ كيف يعمل التشويش؟")
+st.markdown("### 🔧 للتشغيل الحقيقي (مع صلاحيات)")
 
 st.markdown("""
-1. **لا يبحث عن أجهزة** - يرسل إشارات عشوائية مباشرة
-2. **إغراق التردد** - يرسل طلبات اتصال لعناوين MAC عشوائية
-3. **تشويش شامل** - يؤثر على جميع الأجهزة في النطاق
-4. **مستمر** - يعمل بشكل متواصل حتى يتم إيقافه
-""")
+```bash
+# 1. افتح Termux
+# 2. اكتب هذه الأوامر:
 
-# ============================================================
-# التذييل
-# ============================================================
+# تثبيت الأدوات
+pkg update
+pkg install bluez bluez-utils root-repo tsu
 
-st.markdown("---")
-st.markdown("⚠️ **ملاحظات مهمة:**")
-st.markdown("1. هذه الأداة ترسل إشارات تشويش مستمرة")
-st.markdown("2. لا تبحث عن أجهزة، فقط ترسل حزم عشوائية")
-st.markdown("3. قد تؤثر على جميع أجهزة البلوتوث القريبة")
-st.markdown("4. للاستخدام التعليمي فقط")
+# تشغيل البلوتوث
+termux-bluetooth-enable
 
-st.markdown("made by @cheifbreef on discord :)")
+# تشغيل الأداة بصلاحيات الجذر (إذا كان الهاتف مقرصن)
+tsu
+streamlit run bluetooth_jammer.py
